@@ -56,3 +56,24 @@ export function applyDescribed(
     loadError: false,
   };
 }
+
+/** The current Credentials remote accepts positional arguments, not legacy API envelopes. */
+export function credentialsOf(ctx: { get: (name: string) => unknown }): CredentialsClient {
+  const remote = () => {
+    const value = ctx.get("remote.credentials") as {
+      describe: (refs: string[]) => Promise<{ ok: boolean; value?: Record<string, CredentialView> }>;
+      set: (ref: string, value: string) => Promise<{ ok: boolean }>;
+    } | undefined;
+    if (value === undefined) throw new Error("凭据服务尚未就绪，请稍后重试。");
+    return value;
+  };
+  return {
+    async describe({ refs }) {
+      const answer = await remote().describe(refs);
+      return { result: answer.ok && answer.value !== undefined
+        ? { ok: true, value: { credentials: answer.value } }
+        : { ok: false } };
+    },
+    async set({ ref, value }) { return { result: await remote().set(ref, value) }; },
+  };
+}

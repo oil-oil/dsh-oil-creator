@@ -4,13 +4,11 @@ import { startLibraryLiveSync } from "../src/client/catalogSync.ts";
 import {
   getLibraryEpoch,
   setSelectedContentId,
-  setSidebarTab,
   subscribeLibrary,
 } from "../src/client/contentSelection.ts";
 
 describe("startLibraryLiveSync", () => {
   afterEach(() => {
-    setSidebarTab("sessions");
     setSelectedContentId(null);
     vi.useRealTimers();
   });

@@ -8,7 +8,7 @@
 </p>
 
 > [!NOTE]
-> 当前兼容 Node.js 22.19+、DeepSeek Harness `0.1.0-rc.6` / `0.1.0-rc.7`。核心片库可独立使用；Screen Studio、字幕、封面、公众号和发布能力均可按需安装。
+> 当前开发目标为 Node.js 22.19+、DSH Desktop `0.11.0` 内置的 Harness `0.2.0-rc.2`；需要 Desktop 的 `desktopWorkbenches` 服务，不适用于独立 Harness Web。核心片库可独立使用；Screen Studio、字幕、封面、公众号和发布能力均可按需安装。
 
 ## 一条片子，就是一个文件夹
 
@@ -25,6 +25,8 @@
     ├── DeepSeek Harness 上手_3x4.png
     ├── DeepSeek Harness 上手_4x3.png
     ├── DeepSeek Harness 上手_16x9.png
+    ├── visual-review.json
+    ├── visual-review.md
     ├── publish-package.json
     └── 公众号文章/
 ```
@@ -37,7 +39,7 @@
 | --- | --- | --- |
 | 选题与脚本 | 新建规范目录，读写 `topic.md` / `script.md`，遵守长期脚本规则 | 选题方向和最终表达 |
 | 录制与剪辑 | 绑定并打开 Screen Studio 工程，等待导出文件稳定落盘 | 录制、时间线剪辑和导出 |
-| 字幕与封面 | 启动字幕工作流，打开预览，烧录字幕，生成三种画幅封面 | 专有名词、标题和错别字 |
+| 字幕与封面 | 用 Harness Jobs 跟踪、等待和取消长任务；生成三画幅封面后交给多模态模型审查并保存报告 | 专有名词和最终视觉取舍 |
 | 发布 | 把本地材料交给 `video-publisher` 准备多平台草稿 | 各平台最终“发表”按钮 |
 | 数据回收 | 通过 Ego Browser 同步已发布作品的播放、赞、评和链接 | 登录状态和异常匹配结果 |
 
@@ -47,35 +49,17 @@
 
 ### 1. 安装插件
 
-使用 DeepSeek Harness 自带的插件管理命令：
+先从本地源码构建可安装包：
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web add github:oil-oil/dsh-oil-creator
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm check
+pnpm pack
 ```
 
-重启 `web` profile 后即可使用。插件会登记到配置里，不需要手改 Harness 配置。已经全局安装 `dsh` 时，可以去掉命令里的 `npx @deepseek-ai/dsh`。
+在当前 Desktop 的「工作台管理／已安装的工作台」核对本地 `.tgz` 安装入口，或用该 Desktop 配套的 `dsh plugin add --help` 核对支持的输入与参数。只使用明确支持本地包的入口安装生成的 `dsh-oil-creator-0.2.0.tgz`；重启 Harness 后从工作台管理添加并打开「内容工作台」。不要使用另一个版本的全局 CLI 推断 Desktop 支持情况。
 
-Harness 从 GitHub 安装时生成的构建包包含 README 引用的最终 `assets/readme/hero.svg`，不会包含 `assets/readme/source/` 下的源素材。
-
-<details>
-<summary>从源码安装</summary>
-
-```bash
-git clone https://github.com/oil-oil/dsh-oil-creator.git
-cd dsh-oil-creator
-pnpm install --frozen-lockfile
-pnpm build
-npx @deepseek-ai/dsh plugin --profile web add "$PWD"
-npx @deepseek-ai/dsh web
-```
-
-如果 pnpm 明确提示安装期构建被阻止，再带 `--allow-build` 重试；正常安装不需要这一步：
-
-```bash
-npx @deepseek-ai/dsh plugin --profile web add --allow-build=dsh-oil-creator github:oil-oil/dsh-oil-creator
-```
-
-</details>
+已完成类型检查、构建和 251 项测试，预构建包已安装到 macOS arm64 的 Desktop 0.11.0 并打开内容工作台。市场投稿的最终安装来源与逐项验证记录见 [迁移验收记录](docs/desktop-compliance.md)。独立 Harness Web 和其他平台未验证。
 
 ### 2. 让 AI 完成首次配置
 
@@ -90,9 +74,11 @@ npx @deepseek-ai/dsh plugin --profile web add --allow-build=dsh-oil-creator gith
 3. 只报告凭据是否已配置，不把 API Key 读回对话。
 4. 先预览配置变化，得到确认后才保存。
 
-候选目录不存在时，AI 会先展示准备创建的完整路径；确认创建后再重新预览配置。`minimal` preset 不包含 Skill 和文件工具，不适合首次配置或自动整理目录。
+首次保存文件前，在工作台的系统目录选择器中选择资料目录；需要新建目录时也在系统选择器中明确操作。取消选择会保留标题和原业务选择。`minimal` preset 不包含 Skill 和文件工具，不适合首次配置或自动整理目录。
 
 ### 3. 做第一条内容
+
+从工作台新建内容会先选择资料位置，不要求已有会话。选中一期后点击「打开内容会话」，在选择器中确认这一期的目录，由 Desktop 创建或恢复属于内容工作台的原生会话；不会自动发送消息。
 
 可以直接对 AI 说：
 
@@ -103,10 +89,11 @@ npx @deepseek-ai/dsh plugin --profile web add --allow-build=dsh-oil-creator gith
 ## 核心能力
 
 - **本地片库**：按 `日期_可读标题` 扫描目录，展示阶段、成片、字幕、封面、文章和发布状态。
-- **对话上下文**：通过 `@当前详情`、内容搜索或 `/current content` 把目标文件夹交给 AI。
+- **对话上下文**：在属于本工作台的会话里，通过 `@当前详情`、内容搜索或 `/current content` 把目标文件夹交给 AI。
 - **AI 自举配置**：自动发现标准安装路径，缺少能力时给出明确安装方式，写入前必须预览和确认。
 - **长期脚本规则**：保存语气、结构、禁忌和目标观众，之后写或修改 `script.md` 时复用。
-- **长任务追踪**：字幕、封面和烧录启动后立即返回，由工作台继续观察文件产物和任务状态。
+- **原生长任务**：字幕、封面、烧录和导出等待都返回 Harness job id，可统一查看、等待、取消并接收完成通知。
+- **多模态封面审查**：把三画幅封面作为 Harness 附件交给模型检查，并把结构化结论保存为 `visual-review.json` / `.md`。
 - **目录整理**：预览并修正旧文件夹名称；默认不执行、不删除文件。
 - **可选发布闭环**：准备平台草稿后由人最终发表，再同步播放、点赞、评论和作品链接。
 
@@ -128,7 +115,7 @@ npx @deepseek-ai/dsh plugin --profile web add --allow-build=dsh-oil-creator gith
 
 ## 配置原则
 
-设置入口位于 **设置 → 插件 → 内容工作台**。设置页只保留需要人决定的信息，例如内容目录、脚本规则和可选能力凭据；可以通过系统检查发现的路径不重复暴露。
+设置入口位于 **内容工作台顶部 → 设置**。设置页只保留需要人决定的信息，例如内容目录、脚本规则和可选能力凭据；可以通过系统检查发现的路径不重复暴露。
 
 - API Key 使用 Harness 官方凭据服务保存。页面只显示“已配置 / 未配置”，不会回显明文。
 - 内容目录可以换成任意已有的绝对路径，每个直接子文件夹代表一条内容。
@@ -143,20 +130,11 @@ npx @deepseek-ai/dsh plugin --profile web add --allow-build=dsh-oil-creator gith
 - 字幕、封面和平台同步会访问各自的外部服务；不安装、不配置就不会启用。
 - 目录创建、配置保存和批量重命名都遵循“先预览、再确认、后执行”。
 
-## 卸载
+## 卸载与旧版迁移
 
-```bash
-npx @deepseek-ai/dsh plugin --profile web remove dsh-oil-creator
-```
+通过当前 Desktop 的插件管理入口卸载，再重启 Harness。内容目录、overlay 状态和已有会话不随插件删除。
 
-安装、卸载或更新配置后重启 `dsh web`。不要手动修改 `~/.dsh/profiles/web/package.json`，也不要把项目的 `cordis.patch.yml` 复制到用户 profile；插件自己的 bundle patch 会负责装配和清理侧栏。
-
-如果旧版本曾在 profile 的 `cordis.patch.yml` 里手动加入以下内容，迁移后应删除，避免卸载插件后官方侧栏仍被关闭：
-
-```yaml
-- id: ui-sidebar
-  disabled: true
-```
+新版 bundle patch 只插入本包；公共侧栏、工作台切换和原生聊天由 Desktop 管理。旧版如果在用户 profile 中额外手写过 `ui-sidebar: disabled`，升级时应检查并移除那项历史覆盖；不要把本项目的 patch 复制到用户配置。
 
 ## 开发与验证
 
@@ -165,7 +143,7 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-`pnpm check` 会依次运行 TypeScript 检查、Vitest 测试和 Host / Client 构建。欢迎提交 Issue 或 Pull Request；涉及文件格式、配置兼容或外部能力时，请同时补充对应测试和文档。
+`pnpm check` 会依次运行 TypeScript 检查、Host / Client 构建和 Vitest 测试。欢迎提交 Issue 或 Pull Request；涉及文件格式、配置兼容或外部能力时，请同时补充对应测试和文档。
 
 准备推送开源提交或创建 GitHub tag 前运行 `pnpm release:check`。它会先拒绝脏工作树、未跟踪的关键文件或缺失的 `origin`，再验证测试、构建和 GitHub 安装包内容；不会发布到 npm。
 

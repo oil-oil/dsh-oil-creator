@@ -6,25 +6,12 @@
   min-height: 0;
   overflow: hidden;
   background: var(--dsw-alias-bg-base);
-  border-right: 1px solid var(--dsw-alias-border-l1);
   box-sizing: border-box;
   font: var(--dsw-font-markdown-base);
   color: var(--dsw-alias-label-primary);
   --dsh-scrollbar-thumb: transparent;
   --dsh-scrollbar-thumb-hover: transparent;
 }
-
-[data-plugin="dsh-oil-creator"][data-surface="inspector"].docked {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--oil-sidebar-width, 280px);
-}
-
-[data-plugin="dsh-oil-creator"][data-surface="inspector"].docked.open:not(.dragging) {
-  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
-}
-
 [data-plugin="dsh-oil-creator"][data-surface="inspector"] .header {
   flex: none;
   padding: 12px 16px 0 16px;
@@ -480,21 +467,4 @@
 [data-plugin="dsh-oil-creator"][data-surface="inspector"] .tag {
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-markdown-small);
-}
-
-[data-plugin="dsh-oil-creator"][data-surface="inspector"] .resize {
-  position: absolute;
-  top: 0;
-  right: -4px;
-  bottom: 0;
-  width: 8px;
-  cursor: col-resize;
-  z-index: 2;
-  touch-action: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-plugin="dsh-oil-creator"][data-surface="inspector"].docked.open:not(.dragging) {
-    transition: none;
-  }
 }

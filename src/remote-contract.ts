@@ -33,7 +33,7 @@ export const REMOTE_NAMESPACE = "oilCreator";
 const emptyObjectSchema = z.object({});
 
 function codec(typeSymbol: string, schema: z.ZodType<unknown>) {
-  return { mode: "strict" as const, typeSymbol, schema };
+  return { mode: "strict" as const, typeSymbol, create: () => schema };
 }
 
 function jsonParam(
@@ -74,6 +74,7 @@ export const OIL_CREATOR_INVOCATIONS: readonly InvocationDescriptor[] = [
   invocation("getVideoPlayback", idRequestSchema, videoPlaybackResultSchema),
   invocation("getArticleMedia", idRequestSchema, articleMediaResultSchema),
   invocation("getSubtitleText", idRequestSchema, subtitleTextResultSchema),
+  invocation("openContentPath", z.object({ path: z.string().min(1) }), emptyObjectSchema),
   invocation("getSettings", emptyObjectSchema, librarySettingsSchema),
   invocation("getCapabilities", emptyObjectSchema, capabilitiesResultSchema),
   invocation("getRevision", emptyObjectSchema, revisionResultSchema),

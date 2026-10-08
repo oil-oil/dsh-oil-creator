@@ -72,7 +72,6 @@ describe("loadCreatorUiState", () => {
     expect(loadCreatorUiState(storage)).toEqual(DEFAULT_UI_STATE);
   });
 });
-
 describe("saveCreatorUiState", () => {
   it("round-trips through storage", () => {
     const storage = memoryStorage();

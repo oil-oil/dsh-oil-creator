@@ -1,15 +1,13 @@
-import type { ClientContext, WorkspaceId } from "@deepseek-ai/dsh-client-runtime/client";
+import type { Context as ClientContext } from "@deepseek-ai/cordis";
+import type {} from "@deepseek-ai/dsh-client-ui-workspace/client";
 import type {} from "@deepseek-ai/dsh-client-locale/client";
-import type {} from "@deepseek-ai/dsh-client-ui-layout/client";
 import type {} from "@deepseek-ai/dsh-api-remotes/client";
 import type {} from "@deepseek-ai/dsh-client-connection/client";
-import type {} from "@deepseek-ai/dsh-client-ui-settings-plugins/client";
+import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 
 import { TYPERT_REMOTE } from "../remote.ts";
-import { CREATOR_SETTINGS_NAMESPACE } from "../settingsContract.ts";
 import { startLibraryLiveSync } from "./catalogSync.ts";
 import { remountPluginCss, releasePluginCss } from "./pluginCss.ts";
-import { releaseShellChrome } from "./contentSelection.ts";
 import { registerContentTriggers } from "./contentTriggers.ts";
 import type {
   ContentDetail,
@@ -27,26 +25,16 @@ import type {
   ArticleMediaResult,
   VideoPlaybackResult,
 } from "../types.ts";
-import { ContentInspector } from "./ContentInspector.tsx";
 import {
   bumpLibrary,
   bumpProfile,
-  getSelectedContentId,
   setSelectedContentId,
-  subscribeSelectedContentId,
 } from "./contentSelection.ts";
-import type { CredentialsClient } from "./credentialsApi.ts";
-import { CreatorSettingsCard } from "./CreatorSettingsCard.tsx";
+import { credentialsOf } from "./credentialsApi.ts";
 import type { CreatorViewFace } from "./face.ts";
 import { en, NS, type CreatorKey, zh } from "./locales.ts";
-import { OilSidebarRoot } from "./sidebar/OilSidebarRoot.tsx";
-import { startSidebarSession } from "./sidebar/startSession.ts";
-import type { OilSidebarInjected, OilSidebarSlotProps } from "./sidebar/slots.ts";
-import {
-  registerCreatorSettingsCard,
-  type CompatibleSettingsSlots,
-} from "./settingsSlot.ts";
-
+import { CreatorWorkbench } from "./CreatorWorkbench.tsx";
+import { captureWorkbenchNavigation, desktopWorkbenchesOf, pickCreatorDirectory } from "./workbench.ts";
 declare module "@deepseek-ai/dsh-client-ui-slots" {
   interface LocaleNamespaceMap {
     "dsh.oil.creator": CreatorKey;
@@ -61,6 +49,7 @@ interface RemoteAnswer<T> {
 
 interface OilCreatorRemote {
   listContents: (request: { query: string; filter: ContentFilter }) => Promise<RemoteAnswer<ListContentsResult>>;
+  openContentPath: (request: { path: string }) => Promise<RemoteAnswer<Record<string, never>>>;
   getContent: (request: { id: string }) => Promise<RemoteAnswer<ContentDetail>>;
   getCoverThumb: (request: { id: string }) => Promise<RemoteAnswer<CoverThumbResult>>;
   getVideoPlayback: (request: { id: string }) => Promise<RemoteAnswer<VideoPlaybackResult>>;
@@ -73,7 +62,7 @@ interface OilCreatorRemote {
   setProfile: (request: { profile: CreatorProfile }) => Promise<RemoteAnswer<LibrarySettings>>;
   setScriptRules: (request: { text: string }) => Promise<RemoteAnswer<LibrarySettings>>;
   refreshCatalog: (request: Record<string, never>) => Promise<RemoteAnswer<ListContentsResult>>;
-  createContent: (request: { title: string }) => Promise<RemoteAnswer<CreateContentResult>>;
+  createContent: (request: { title: string; libraryRoot?: string }) => Promise<RemoteAnswer<CreateContentResult>>;
   setContentStage: (request: { id: string; readyToRecord: boolean }) => Promise<RemoteAnswer<ContentDetail>>;
   bindStudio: (request: { id: string; path: string }) => Promise<RemoteAnswer<ContentDetail>>;
   openStudio: (request: { id: string }) => Promise<RemoteAnswer<ContentDetail>>;
@@ -88,12 +77,7 @@ interface OilCreatorRemote {
   startSubtitleBurn: (request: { id: string }) => Promise<RemoteAnswer<ContentDetail>>;
   startSubtitleGenerate: (request: { id: string }) => Promise<RemoteAnswer<ContentDetail>>;
   startCoverGenerate: (request: { id: string }) => Promise<RemoteAnswer<ContentDetail>>;
-  setScript: (request: { id: string; text: string }) => Promise<RemoteAnswer<ContentDetail>>;
-}
-
-function credentialsOf(ctx: ClientContext): CredentialsClient | undefined {
-  const connection = ctx.get("connection") as { api?: { credentials?: CredentialsClient } } | undefined;
-  return connection?.api?.credentials;
+  setScript: (request: { id: string; text: string; folderPath?: string }) => Promise<RemoteAnswer<ContentDetail>>;
 }
 
 function unwrap<T>(answer: RemoteAnswer<T>, fallback: string): T {
@@ -103,7 +87,7 @@ function unwrap<T>(answer: RemoteAnswer<T>, fallback: string): T {
   return answer.value;
 }
 
-export const inject = ["slots", "locale", "remote", "workspaces", "layout", "connection"];
+export const inject = ["locale", "remote", "uiWorkspace", "desktopWorkbenches"];
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), "dsh-oil-creator: dictionaries");
@@ -111,7 +95,6 @@ export function apply(ctx: ClientContext): void {
     remountPluginCss();
     return () => {
       releasePluginCss();
-      releaseShellChrome();
     };
   }, "dsh-oil-creator: chrome");
   const remoteOf = (): OilCreatorRemote | undefined =>
@@ -119,6 +102,7 @@ export function apply(ctx: ClientContext): void {
 
   const face = (): CreatorViewFace => ({
     ready: () => remoteOf() !== undefined,
+    captureNavigation: () => captureWorkbenchNavigation(desktopWorkbenchesOf(ctx)),
     listContents: async (query, filter) => {
       const remote = remoteOf();
       if (remote === undefined) throw new Error("remote unavailable");
@@ -159,8 +143,12 @@ export function apply(ctx: ClientContext): void {
       const answer = await remote.getSubtitleText({ id });
       return answer.ok && answer.value !== undefined ? answer.value : { text: "", cues: [] };
     },
-    pickDirectory: () => ctx.workspaces.pickDirectory(),
-    openPath: (path) => ctx.workspaces.openPath(path),
+    pickDirectory: () => pickCreatorDirectory(ctx),
+    openPath: async (path) => {
+      const remote = remoteOf();
+      if (remote === undefined) throw new Error("remote unavailable");
+      unwrap(await remote.openContentPath({ path }), "open failed");
+    },
     getSettings: async () => {
       const remote = remoteOf();
       if (remote === undefined) throw new Error("remote unavailable");
@@ -180,6 +168,7 @@ export function apply(ctx: ClientContext): void {
       const remote = remoteOf();
       if (remote === undefined) throw new Error("remote unavailable");
       unwrap(await remote.setLibraryRoot({ path }), "set root failed");
+      setSelectedContentId(null);
       bumpLibrary();
     },
     setProfile: async (profile) => {
@@ -204,7 +193,13 @@ export function apply(ctx: ClientContext): void {
     createContent: async (title) => {
       const remote = remoteOf();
       if (remote === undefined) throw new Error("remote unavailable");
-      const created = unwrap(await remote.createContent({ title }), "create failed");
+      const service = desktopWorkbenchesOf(ctx);
+      const originalSession = service.currentSession();
+      const path = await pickCreatorDirectory(ctx);
+      if (path === null || !service.isActive() || service.currentSession() !== originalSession) throw new Error("已取消选择资料目录。");
+      unwrap(await remote.setLibraryRoot({ path }), "set root failed");
+      const created = unwrap(await remote.createContent({ title, libraryRoot: path }), "create failed");
+      if (!service.isActive() || service.currentSession() !== originalSession) throw new Error(`内容已保存到 ${created.folderPath}；会话已切换，请从对应片库打开。`);
       bumpLibrary();
       return created;
     },
@@ -273,17 +268,17 @@ export function apply(ctx: ClientContext): void {
       bumpLibrary();
       return next;
     },
-    setScript: async (id, text) => {
+    setScript: async (id, text, folderPath) => {
       const remote = remoteOf();
       if (remote === undefined) throw new Error("remote unavailable");
-      return unwrap(await remote.setScript({ id, text }), "script failed");
+      return unwrap(await remote.setScript({ id, text, ...(folderPath === undefined ? {} : { folderPath }) }), "script failed");
     },
   });
 
   const contentFace = face();
 
-  ctx.effect(() => {
-    const triggers = ctx.get("inputTriggers") as
+  ctx.inject(["inputTriggers"], (triggerCtx) => triggerCtx.effect(() => {
+    const triggers = triggerCtx.get("inputTriggers") as
       | Parameters<typeof registerContentTriggers>[0]
       | undefined;
     return registerContentTriggers(
@@ -293,46 +288,28 @@ export function apply(ctx: ClientContext): void {
         const listed = await contentFace.listContents("", "all");
         return listed.items.map((item) => ({ id: item.id, title: item.title }));
       },
-    );
-  }, "dsh-oil-creator: content triggers");
-
-  const injectSidebar = (): OilSidebarInjected => ({
-    startSession: (workspaceId?: WorkspaceId) => {
-      startSidebarSession(ctx, workspaceId);
-    },
-    toggleSidebar: () => {
-      ctx.layout.toggleSidebar();
-    },
-  });
-
-  function BoundSidebar(props: OilSidebarSlotProps) {
-    const contentT = ctx.locale.bind(NS);
-    return (
-      <OilSidebarRoot
-        {...props}
-        tabLabels={{
-          sessions: contentT("tab.sessions"),
-          content: contentT("tab"),
-        }}
-        contentFace={contentFace}
-        contentT={contentT}
-      />
-    );
-  }
-
-  ctx.slots.inject("sidebar", () =>
-    ctx.slots.register({
-      name: "sidebar",
-      locale: NS,
-      priority: -1,
-      children: {
-        "sidebar.workspaces": { kind: "single", scope: "root" },
-        "sidebar.settings": { kind: "single", scope: "root" },
-        "sidebar.footer.action": { kind: "list", scope: "root" },
+      (target) => {
+        const service = desktopWorkbenchesOf(ctx);
+        const session = service.currentSession();
+        const targetId = (target as { sessionId?: string } | undefined)?.sessionId;
+        return service.isActive() && session !== undefined && service.ownsSession(session)
+          && (target === undefined || targetId === session);
       },
-      inject: injectSidebar,
-    }, BoundSidebar),
-  );
+    );
+  }, "dsh-oil-creator: content triggers"));
+
+  const workbenches = desktopWorkbenchesOf(ctx);
+  const credentialClient = credentialsOf(ctx);
+  function BusinessPanel() {
+    return <CreatorWorkbench face={contentFace} service={workbenches} credentials={credentialClient} t={ctx.locale.bind(NS)} />;
+  }
+  ctx.effect(() => workbenches.register({
+    title: "内容工作台",
+    repository: "https://github.com/oil-oil/dsh-oil-creator",
+    description: "管理本地片库、脚本、字幕、封面与发布状态",
+    panelTitle: "内容工作台",
+    layout: { businessSide: "right", businessWidth: 0.7 },
+  }, BusinessPanel), "dsh-oil-creator: workbench");
 
   ctx.effect(async () => {
     const disposeRemote = await ctx.remote.$mount(TYPERT_REMOTE);
@@ -344,60 +321,12 @@ export function apply(ctx: ClientContext): void {
       return () => {};
     }
     bumpProfile();
+    bumpLibrary();
 
-    const stopOverlay = ctx.slots.inject("shell.overlay", () => {
-      let disposeOccupant: (() => void) | undefined;
-      const release = (): void => {
-        disposeOccupant?.();
-        disposeOccupant = undefined;
-      };
-      const sync = (): void => {
-        if (getSelectedContentId() === null) {
-          release();
-          return;
-        }
-        if (disposeOccupant !== undefined) return;
-        disposeOccupant = ctx.slots.register({
-          name: "shell.overlay",
-          id: "oil-creator-inspector",
-          order: 20,
-          locale: NS,
-          inject: () => ({
-            ...face(),
-            closeDetails: () => {
-              setSelectedContentId(null);
-            },
-          }),
-        }, ContentInspector);
-      };
-      const stop = subscribeSelectedContentId(sync);
-      sync();
-      return () => {
-        stop();
-        release();
-      };
-    });
-    const stopSettings = ctx.slots.inject("settings.plugin.item", () =>
-      registerCreatorSettingsCard(
-        ctx.slots as unknown as CompatibleSettingsSlots,
-        CreatorSettingsCard,
-        {
-          namespace: CREATOR_SETTINGS_NAMESPACE,
-          legacyId: "dsh-oil-creator",
-          legacyOrder: 40,
-          locale: NS,
-          inject: () => ({
-            ...face(),
-            credentials: credentialsOf(ctx),
-          }),
-        },
-      ));
     const stopLive = startLibraryLiveSync(() => contentFace.getRevision());
 
     return async () => {
       stopLive();
-      stopOverlay();
-      stopSettings();
       await disposeRemote();
     };
   }, "dsh-oil-creator: remote-view");

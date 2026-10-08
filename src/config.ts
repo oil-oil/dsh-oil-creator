@@ -56,7 +56,7 @@ export function expandHomePath(path: string, home = homedir()): string {
 /** @deprecated Use {@link defaultLibraryRoot}. Kept so existing imports keep working. */
 export const DEFAULT_LIBRARY_ROOT = defaultLibraryRoot();
 
-export const Config: Schema<Config> = Schema.object({
+export const Config = Schema.object({
   libraryRoot: Schema.string().default(defaultLibraryRoot()),
   dataDir: Schema.string().default(defaultDataDir()),
   subtitleSkillDir: Schema.string().default(""),

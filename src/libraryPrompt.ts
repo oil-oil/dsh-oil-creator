@@ -8,16 +8,6 @@ export interface LibraryPromptSource {
   cachedEnabledPlatforms?: readonly string[] | undefined;
 }
 
-interface PromptSectionHost {
-  systemPrompt: {
-    section: (section: {
-      name: string;
-      order: number;
-      text: string | (() => string);
-    }) => () => void;
-  };
-}
-
 export function resolvePromptLibraryRoot(source: LibraryPromptSource): string {
   return source.cache?.libraryRoot ?? source.libraryRoot;
 }
@@ -59,15 +49,29 @@ export function libraryConventionText(
   return lines.join("\n");
 }
 
-export function registerLibraryPrompt(ctx: PromptSectionHost, source: LibraryPromptSource): () => void {
-  return ctx.systemPrompt.section({
-    name: "oil:library",
-    order: 120,
-    text: () => libraryConventionText(
-      resolvePromptLibraryRoot(source),
-      source.dataDir,
-      source.cachedScriptRules,
-      source.cachedEnabledPlatforms,
-    ),
+export interface LibraryPromptHost {
+  get: (name: string) => unknown;
+  on: (event: "system-prompt/assemble", listener: (
+    assembly: { sections: Array<{ name: string; text: string }> },
+    context: { agent?: { session: { id: string } } },
+    next: () => Promise<unknown>,
+  ) => Promise<unknown>) => () => void;
+}
+
+/** Read Desktop's durable ownership for every assembly; native sessions receive no private library context. */
+export function registerLibraryPrompt(ctx: LibraryPromptHost, source: LibraryPromptSource): () => void {
+  return ctx.on("system-prompt/assemble", async (assembly, context, next) => {
+    const id = context.agent?.session.id;
+    const ownership = ctx.get("desktopWorkbenchOwnership") as {
+      read: () => Promise<{ added: string[]; sessionBindings: Record<string, string> }>;
+    } | undefined;
+    const state = id === undefined || ownership === undefined ? undefined : await ownership.read().catch(() => undefined);
+    if (id !== undefined && state?.added.includes("oil-oil/dsh-oil-creator")
+      && state.sessionBindings[id] === "oil-oil/dsh-oil-creator") {
+      assembly.sections.push({ name: "oil:library", text: libraryConventionText(
+        resolvePromptLibraryRoot(source), source.dataDir, source.cachedScriptRules, source.cachedEnabledPlatforms,
+      ) });
+    }
+    return next();
   });
 }

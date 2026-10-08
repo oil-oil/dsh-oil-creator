@@ -1,5 +1,3 @@
-- id: ui-sidebar
-  disabled: true
 - insert:
     - id: dsh-oil-creator
       name: dsh-oil-creator

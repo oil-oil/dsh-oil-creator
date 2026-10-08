@@ -21,7 +21,7 @@ function parsePackMetadata(output: string) {
 }
 
 describe("DeepSeek Harness bundle packaging", () => {
-  it("owns the sidebar replacement in the bundle layer", () => {
+  it("inserts its own plugin without overriding Desktop navigation", () => {
     const manifest = JSON.parse(
       readFileSync(resolve(root, "package.json"), "utf8"),
     ) as {
@@ -69,37 +69,19 @@ describe("DeepSeek Harness bundle packaging", () => {
       "https://github.com/oil-oil/dsh-oil-creator#readme",
     );
     expect(manifest.dsh?.client?.inject).toEqual(expect.arrayContaining([
-      "@deepseek-ai/dsh-client-ui-settings",
-      "@deepseek-ai/dsh-client-ui-settings-plugins",
+      "dsh-desktop-workbenches", "@deepseek-ai/dsh-client-ui-workspace",
+      "@deepseek-ai/dsh-api-settings-controller",
     ]));
-    expect(manifest.peerDependencies?.["@deepseek-ai/dsh-settings"])
-      .toContain("0.1.0-rc.7");
-    expect(manifest.peerDependencies?.["@deepseek-ai/dsh-client-ui-settings-plugins"])
-      .toContain("0.1.0-rc.7");
-    expect(patch).toMatch(/^- id: ui-sidebar\n  disabled: true$/m);
-    expect(patch).toMatch(/^- insert:\n    - id: dsh-oil-creator\n      name: dsh-oil-creator$/m);
+    expect(manifest.dsh?.client?.inject).not.toContain("@deepseek-ai/dsh-client-ui-sidebar");
+    for (const range of Object.values(manifest.peerDependencies ?? {})) {
+      expect(range).not.toContain("0.1.1-rc.2");
+    }
+    expect(patch.trim()).toBe("- insert:\n    - id: dsh-oil-creator\n      name: dsh-oil-creator");
     expect(copyInplace).not.toContain(".dsh/profiles");
     expect(copyInplace).toContain("libDirectory");
     expect(releaseCheck).toContain('run(root, "pnpm", ["check"])');
     expect(releaseCheck).toContain(
       '"pack", "--dry-run", "--ignore-scripts", "--json"',
-    );
-  });
-
-  it("documents lifecycle through dsh plugin instead of profile edits", () => {
-    const readme = readFileSync(resolve(root, "README.md"), "utf8");
-    const implementation = readFileSync(
-      resolve(root, "docs/implementation.md"),
-      "utf8",
-    );
-
-    expect(readme).toContain("plugin --profile web add");
-    expect(readme).toContain(
-      "dsh plugin --profile web remove dsh-oil-creator",
-    );
-    expect(implementation).toContain("dsh.bundle.patch");
-    expect(implementation).not.toContain(
-      "`~/.dsh/profiles/web/package.json` 里的 `file:` 依赖",
     );
   });
 
@@ -115,6 +97,7 @@ describe("DeepSeek Harness bundle packaging", () => {
     try {
       for (const runtimeFile of runtimeFiles) {
         expect(existsSync(resolve(root, runtimeFile))).toBe(true);
+        expect(readFileSync(resolve(root, runtimeFile), "utf8")).not.toContain(root.replace(/\/$/, ""));
       }
 
       const output = execFileSync(

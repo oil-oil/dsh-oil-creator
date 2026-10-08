@@ -51,21 +51,21 @@ describe("resolvePromptLibraryRoot", () => {
 });
 
 describe("registerLibraryPrompt", () => {
-  it("registers a stable oil:library section", () => {
-    const seen: Array<{ name: string; order: number; text: string }> = [];
+  it("attaches private content context only to an available creator-owned session", async () => {
+    let listener: Parameters<Parameters<typeof registerLibraryPrompt>[0]["on"]>[1];
+    const state = { added: ["oil-oil/dsh-oil-creator"], sessionBindings: { own: "oil-oil/dsh-oil-creator", other: "someone/other" } };
     registerLibraryPrompt({
-      systemPrompt: {
-        section(section) {
-          const text = typeof section.text === "function" ? section.text() : section.text;
-          seen.push({ name: section.name, order: section.order, text });
-          return () => undefined;
-        },
-      },
+      get: () => ({ read: async () => state }),
+      on(_event, handle) { listener = handle; return () => undefined; },
     }, { libraryRoot: "/lib", dataDir: "/data" });
-    expect(seen).toEqual([{
-      name: "oil:library",
-      order: 120,
-      text: libraryConventionText("/lib", "/data"),
-    }]);
+    for (const id of ["own", "other", "native", undefined]) {
+      const assembly = { sections: [] as Array<{ name: string; text: string }> };
+      await listener!(assembly, id === undefined ? {} : { agent: { session: { id } } }, async () => assembly);
+      expect(assembly.sections).toEqual(id === "own" ? [{ name: "oil:library", text: libraryConventionText("/lib", "/data") }] : []);
+    }
+    state.added = [];
+    const assembly = { sections: [] };
+    await listener!(assembly, { agent: { session: { id: "own" } } }, async () => assembly);
+    expect(assembly.sections).toEqual([]);
   });
 });
