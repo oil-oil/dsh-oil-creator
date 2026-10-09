@@ -1,6 +1,6 @@
 {
   "name": "dsh-oil-creator",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AI-assisted local creator workbench for DeepSeek Harness",
   "license": "MIT",
   "repository": {
@@ -73,12 +73,12 @@
     "check": "pnpm typecheck && pnpm build && pnpm test"
   },
   "dependencies": {
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "~3.18.4",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-api-remotes": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-attachment": ">=0.2.0-rc.2 <0.3.0-0",
     "@deepseek-ai/dsh-client-connection": ">=0.2.0-rc.2 <0.3.0-0",
@@ -95,6 +95,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2",
     "@deepseek-ai/dsh-attachment": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",

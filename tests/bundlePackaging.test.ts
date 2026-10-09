@@ -33,6 +33,7 @@ describe("DeepSeek Harness bundle packaging", () => {
         client?: { inject?: string[] };
       };
       peerDependencies?: Record<string, string>;
+      dependencies?: Record<string, string>;
       repository?: { type?: string; url?: string };
       bugs?: { url?: string };
       homepage?: string;
@@ -73,6 +74,10 @@ describe("DeepSeek Harness bundle packaging", () => {
       "@deepseek-ai/dsh-api-settings-controller",
     ]));
     expect(manifest.dsh?.client?.inject).not.toContain("@deepseek-ai/dsh-client-ui-sidebar");
+    // A second ToolRuntime copy shadows Desktop's service while agent-loop
+    // keeps the host's scheduler Symbol, breaking every tool before dispatch.
+    expect(manifest.dependencies?.["@deepseek-ai/dsh-tools"]).toBeUndefined();
+    expect(manifest.peerDependencies?.["@deepseek-ai/dsh-tools"]).toBe(">=0.2.0-rc.2 <0.3.0-0");
     for (const range of Object.values(manifest.peerDependencies ?? {})) {
       expect(range).not.toContain("0.1.1-rc.2");
     }

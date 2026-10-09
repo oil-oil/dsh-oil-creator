@@ -11,9 +11,6 @@ importers:
 
   .:
     dependencies:
-      '@deepseek-ai/dsh-tools':
-        specifier: 0.2.0-rc.2
-        version: 0.2.0-rc.2(c6e351a6a6cfd1c2a664558bffcd410d)
       '@deepseek-ai/schemastery':
         specifier: ~3.18.4
         version: 3.18.4
@@ -69,6 +66,9 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(51deeedcaad6e0cffdb494acbda2ecd3)
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(c6e351a6a6cfd1c2a664558bffcd410d)
       '@deepseek-ai/dsh-typert-protocol':
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)

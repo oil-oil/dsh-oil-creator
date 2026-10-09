@@ -65,3 +65,7 @@
 ## 市场准备复核（2026-10-08）
 
 随后通过 Desktop 随附 Harness CLI 的实际入口完成安装，绕过失效的旧 CLI 包装器；未使用其他版本的全局 CLI。运行 web profile 中的 0.2.0 Host、client、Typert 与采集脚本均逐字节匹配最新构建。Desktop 工作台切换器中已有「内容工作台」，业务面板实际打开且搜索输入可用。`pnpm check` 再次完成，41 个文件、251 项测试通过；前述未验证项仍须以最终市场验收表补充，不能把早期记录当成全量通过。
+
+## 0.2.1 工具修复与隐私复核（2026-10-09）
+
+`@deepseek-ai/dsh-tools` 从运行依赖迁移为宿主 peer，避免 profile 工具服务与内置 Agent Loop 使用不同的 scheduler Symbol。安装与实际 Shell 执行已验证；市场自测的完整状态和隐私检查范围见 [市场准备与隐私核验](market-selftest.md)。仍有适用项未通过或未验证，不能宣称已经达到市场验收条件。
