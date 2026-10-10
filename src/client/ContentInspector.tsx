@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  IconBrowseOutline16,
-  IconCloseOutline16,
-  IconFolderOpenOutline16,
+  IconBrowseOutlineRegular,
+  IconCloseOutlineRegular,
+  IconFolderOpenOutlineRegular,
   MarkdownText,
   Menu,
   StateDot,
 } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { InjectFace, PropsLocale, PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
 
 import { formatCount } from "../collectPublish.ts";
 import { isPublishMark } from "../publishStatus.ts";
@@ -16,10 +15,6 @@ import type { ArticleMediaResult, ContentDetail, PublishMark, PublishPlatform, S
 import { CoverThumb, coverThumbRevision } from "./CoverThumb.tsx";
 import type { CreatorViewFace } from "./face.ts";
 import {
-  applyConversationInset,
-  clearConversationInset,
-  getInspectorWidth,
-  setInspectorWidth,
   useLibraryEpoch,
   useProfileEpoch,
   useSelectedContentId,
@@ -28,13 +23,14 @@ import type { CreatorKey } from "./locales.ts";
 import { PlatformMark } from "./PlatformMark.tsx";
 import { isPublishSyncDisabled, PUBLISH_UI_PLATFORMS, selectEnabledPublishPlatforms } from "./publishPlatforms.ts";
 import { formatRelativeTime } from "./relativeTime.ts";
-import { WORKFLOW_TONE } from "./sidebar/ContentSidebarPanel.tsx";
+import { WORKFLOW_TONE } from "./workflowTone.ts";
 import { ActionBar, ActionButton } from "./ui/ActionButton.tsx";
 import { StatusPill, type StatusTone } from "./ui/StatusPill.tsx";
 import { Surface } from "./ui/Surface.tsx";
 import "./ContentInspector.css";
 
 const TABS = ["overview", "video", "script", "subtitle", "article"] as const;
+const INSPECTOR_WIDE_PX = 720;
 type InspectorTab = (typeof TABS)[number];
 
 const PIPELINE_STEPS = [
@@ -151,17 +147,16 @@ function WorkRow({
   );
 }
 
-export type ContentInspectorProps =
-  & PropsRuntime<"shell.overlay">
-  & InjectFace<CreatorViewFace>
-  & PropsLocale<"dsh.oil.creator">
-  & {
-    closeDetails: () => void;
-  };
+const pendingScriptDrafts = new Map<string, string>();
+
+export type ContentInspectorProps = CreatorViewFace & {
+  suspended?: boolean;
+  t: (key: CreatorKey) => string;
+};
 
 export function ContentInspector({
   t,
-  useSessions,
+  suspended = false,
   ready,
   getContent,
   getCoverThumb,
@@ -181,22 +176,22 @@ export function ContentInspector({
   pickDirectory,
   openSubtitlePreview,
   openPath,
-  closeDetails,
 }: ContentInspectorProps) {
+  const tabGroupId = useId();
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [selectedId, setSelectedId] = useSelectedContentId();
-  const currentSessionId = useSessions((sessions) => sessions.current);
   const libraryEpoch = useLibraryEpoch();
   const profileEpoch = useProfileEpoch();
   const [enabledPlatforms, setEnabledPlatforms] = useState<readonly PublishPlatform[] | undefined>(undefined);
   const scriptSavedRef = useRef(true);
+  const loadedFolder = useRef<string | null>(null);
   const loadedId = useRef<string | null>(null);
+  const pane = useRef<HTMLDivElement>(null);
   const [detail, setDetail] = useState<ContentDetail | undefined>(undefined);
   const [cues, setCues] = useState<SubtitleCue[]>([]);
   const [error, setError] = useState<string | undefined>(undefined);
   const [tab, setTab] = useState<InspectorTab>("overview");
-  const [panelWidth, setPanelWidth] = useState(getInspectorWidth);
-  const [expanded, setExpanded] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [wide, setWide] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>(undefined);
 
   const [busy, setBusy] = useState<"subtitle" | "burn" | "cover" | "sync" | undefined>(undefined);
@@ -210,7 +205,6 @@ export function ContentInspector({
   const [articleOrigin, setArticleOrigin] = useState<string | undefined>(undefined);
   const [publishMenu, setPublishMenu] = useState<PublishPlatform | null>(null);
   const [publishPending, setPublishPending] = useState<PublishPlatform | null>(null);
-  const drag = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
     setTab("overview");
@@ -244,11 +238,20 @@ export function ContentInspector({
   }, [getSettings, libraryEpoch, profileEpoch, ready]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => { setExpanded(true); });
-    return () => { window.cancelAnimationFrame(frame); };
+    const el = pane.current;
+    if (el === null) return;
+    const update = (): void => {
+      setWide(el.getBoundingClientRect().width >= INSPECTOR_WIDE_PX);
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => { update(); });
+    observer.observe(el);
+    return () => { observer.disconnect(); };
   }, []);
 
   useEffect(() => {
+    if (suspended) return;
     if (selectedId === null) {
       loadedId.current = null;
       setDetail(undefined);
@@ -268,10 +271,12 @@ export function ContentInspector({
         if (cancelled) return;
         loadedId.current = selectedId;
         setDetail(nextDetail);
-        if (switched || scriptSavedRef.current) {
-          setScriptDraft(nextDetail.script);
-          setScriptSaved(true);
+        if (switched || loadedFolder.current !== nextDetail.folderPath || scriptSavedRef.current) {
+          const draft = pendingScriptDrafts.get(nextDetail.folderPath) ?? nextDetail.script;
+          setScriptDraft(draft);
+          setScriptSaved(draft === nextDetail.script);
         }
+        loadedFolder.current = nextDetail.folderPath;
         setCues(cuesFromSubtitle(nextSubtitle));
       },
       (cause: unknown) => {
@@ -284,10 +289,10 @@ export function ContentInspector({
     return () => {
       cancelled = true;
     };
-  }, [selectedId, libraryEpoch]);
+  }, [selectedId, libraryEpoch, suspended]);
 
   useEffect(() => {
-    if (tab !== "video" || selectedId === null || !ready()) return;
+    if (suspended || tab !== "video" || selectedId === null || !ready()) return;
     let cancelled = false;
     setVideoReady(false);
     void getVideoPlayback(selectedId).then((next: VideoPlaybackResult) => {
@@ -302,10 +307,10 @@ export function ContentInspector({
     return () => {
       cancelled = true;
     };
-  }, [tab, selectedId, libraryEpoch]);
+  }, [tab, selectedId, libraryEpoch, suspended]);
 
   useEffect(() => {
-    if (tab !== "article" || selectedId === null || !ready()) return;
+    if (suspended || tab !== "article" || selectedId === null || !ready()) return;
     let cancelled = false;
     void getArticleMedia(selectedId).then((next: ArticleMediaResult) => {
       if (cancelled) return;
@@ -316,43 +321,45 @@ export function ContentInspector({
     return () => {
       cancelled = true;
     };
-  }, [tab, selectedId, libraryEpoch]);
+  }, [tab, selectedId, libraryEpoch, suspended]);
 
   useEffect(() => {
-    if (detail === undefined || scriptSaved) return;
+    if (suspended || detail === undefined || scriptSaved) return;
+    let cancelled = false;
+    const folder = detail.folderPath;
     const timer = window.setTimeout(() => {
-      void setScript(detail.id, scriptDraft).then((next) => {
+      void setScript(detail.id, scriptDraft, folder).then((next) => {
+        if (pendingScriptDrafts.get(folder) === scriptDraft && next.script === scriptDraft) pendingScriptDrafts.delete(folder);
+        if (cancelled) return;
         setDetail(next);
         setScriptSaved(scriptDraft === next.script);
       }, (cause: unknown) => {
-        setActionError(cause instanceof Error ? cause.message : t("empty.error" as CreatorKey));
+        if (!cancelled) setActionError(cause instanceof Error ? cause.message : t("empty.error" as CreatorKey));
       });
     }, 700);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [detail?.id, scriptDraft, scriptSaved]);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [detail?.id, detail?.folderPath, scriptDraft, scriptSaved, suspended]);
 
   useEffect(() => {
     const running = detail?.burn.status === "running"
       || detail?.subtitleJob.status === "running"
       || detail?.coverJob.status === "running";
-    if (!running || selectedId === null || !ready()) return;
+    if (suspended || !running || selectedId === null || !ready()) return;
     const timer = window.setInterval(() => {
       void getContent(selectedId).then((next) => { setDetail(next); });
     }, 3000);
     return () => { window.clearInterval(timer); };
-  }, [selectedId, detail?.burn.status, detail?.subtitleJob.status, detail?.coverJob.status]);
+  }, [selectedId, detail?.burn.status, detail?.subtitleJob.status, detail?.coverJob.status, suspended]);
 
   useEffect(() => {
-    if (selectedId === null || detail?.subtitleJob.status !== "done" || !ready()) return;
+    if (suspended || selectedId === null || detail?.subtitleJob.status !== "done" || !ready()) return;
     void getSubtitleText(selectedId).then((nextSubtitle) => {
       setCues(cuesFromSubtitle(nextSubtitle));
     });
-  }, [selectedId, detail?.subtitleJob.status]);
+  }, [selectedId, detail?.subtitleJob.status, suspended]);
 
   useEffect(() => {
-    if (!expectSubtitlePreview.current || selectedId === null || !ready()) return;
+    if (suspended || !expectSubtitlePreview.current || selectedId === null || !ready()) return;
     if (detail?.subtitleJob.status === "done") {
       expectSubtitlePreview.current = false;
       void openSubtitlePreview(selectedId).then(() => undefined, (cause: unknown) => {
@@ -361,9 +368,7 @@ export function ContentInspector({
       return;
     }
     if (detail?.subtitleJob.status === "error") expectSubtitlePreview.current = false;
-  }, [selectedId, detail?.subtitleJob.status]);
-
-  const shownWidth = expanded ? panelWidth : 0;
+  }, [selectedId, detail?.subtitleJob.status, suspended]);
 
   const applyPublish = (platform: PublishPlatform, status: PublishMark): void => {
     setPublishMenu(null);
@@ -377,35 +382,6 @@ export function ContentInspector({
       setPublishPending(null);
     });
   };
-
-  useEffect(() => {
-    if (selectedId === null) {
-      clearConversationInset();
-      return;
-    }
-    applyConversationInset(shownWidth, !dragging);
-  }, [selectedId, currentSessionId, shownWidth, dragging]);
-
-  useEffect(() => () => { clearConversationInset(); }, []);
-
-  useEffect(() => {
-    const onMove = (event: PointerEvent): void => {
-      if (drag.current === null) return;
-      setInspectorWidth(drag.current.startWidth + (event.clientX - drag.current.startX));
-      setPanelWidth(getInspectorWidth());
-    };
-    const onUp = (): void => {
-      if (drag.current === null) return;
-      drag.current = null;
-      setDragging(false);
-    };
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
-    return () => {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-    };
-  }, []);
 
   if (selectedId === null) return null;
 
@@ -590,19 +566,26 @@ export function ContentInspector({
 
   const currentStepMeta = PIPELINE_STEPS.find((step) => step.id === currentStep);
 
+  const moveTabFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
+    let target = index;
+    if (event.key === "ArrowRight") target = (index + 1) % TABS.length;
+    else if (event.key === "ArrowLeft") target = (index - 1 + TABS.length) % TABS.length;
+    else if (event.key === "Home") target = 0;
+    else if (event.key === "End") target = TABS.length - 1;
+    else return;
+    event.preventDefault();
+    const next = TABS[target];
+    if (next === undefined) return;
+    setTab(next);
+    tabRefs.current[target]?.focus();
+  };
+
   return (
     <div
+      ref={pane}
       data-plugin="dsh-oil-creator"
       data-surface="inspector"
-      className={[
-        "docked",
-        expanded ? "open" : "",
-        dragging ? "dragging" : "",
-        panelWidth >= 560 ? "wide" : "",
-      ].filter((part) => part !== "").join(" ")}
-      style={{
-        width: shownWidth,
-      }}
+      className={wide ? "wide" : undefined}
     >
       <header className="header">
         <div className="titleRow">
@@ -617,38 +600,48 @@ export function ContentInspector({
                 aria-label={t("inspector.openFolder" as CreatorKey)}
                 onClick={() => { void openPath(detail.folderPath); }}
               >
-                <IconFolderOpenOutline16 size={14} />
+                <IconFolderOpenOutlineRegular size={14} />
               </button>
             )}
             <button
+              data-detail-focus="true"
               type="button"
               className="close"
               aria-label={t("inspector.close" as CreatorKey)}
               onClick={() => {
                 setSelectedId(null);
-                closeDetails();
               }}
             >
-              <IconCloseOutline16 size={14} />
+              <IconCloseOutlineRegular size={14} />
             </button>
           </div>
         </div>
         <div className="tabs" role="tablist">
-          {TABS.map((id) => (
+          {TABS.map((id, index) => (
             <button
               key={id}
+              ref={(node) => { tabRefs.current[index] = node; }}
+              id={`${tabGroupId}-tab-${id}`}
               type="button"
               role="tab"
               aria-selected={tab === id}
+              aria-controls={`${tabGroupId}-panel-${id}`}
+              tabIndex={tab === id ? 0 : -1}
               className={tab === id ? "tab active" : "tab"}
               onClick={() => { setTab(id); }}
+              onKeyDown={(event) => { moveTabFocus(event, index); }}
             >
               {t(TAB_KEY[id])}
             </button>
           ))}
         </div>
       </header>
-      <div className="body">
+      <div
+        id={`${tabGroupId}-panel-${tab}`}
+        className="body"
+        role="tabpanel"
+        aria-labelledby={`${tabGroupId}-tab-${tab}`}
+      >
         {error !== undefined && <div className="empty">{error}</div>}
         {error === undefined && detail === undefined && (
           <div className="empty">{t("empty.loading" as CreatorKey)}</div>
@@ -662,7 +655,7 @@ export function ContentInspector({
                     id={detail.id}
                     load={getCoverThumb}
                     revision={coverThumbRevision(detail.covers)}
-                    fallback={<IconBrowseOutline16 className="coverFallback" size={22} />}
+                    fallback={<IconBrowseOutlineRegular className="coverFallback" size={22} />}
                   />
                 </div>
                 {detail.covers["4x3"] !== undefined && (
@@ -671,7 +664,7 @@ export function ContentInspector({
                       id={`${detail.id}::4x3`}
                       load={getCoverThumb}
                       revision={detail.covers["4x3"]}
-                      fallback={<IconBrowseOutline16 className="coverFallback" size={22} />}
+                      fallback={<IconBrowseOutlineRegular className="coverFallback" size={22} />}
                     />
                   </div>
                 )}
@@ -894,6 +887,7 @@ export function ContentInspector({
             value={scriptDraft}
             placeholder={t("inspector.script.placeholder" as CreatorKey)}
             onChange={(event) => {
+              pendingScriptDrafts.set(detail.folderPath, event.target.value);
               setScriptDraft(event.target.value);
               setScriptSaved(event.target.value === detail.script);
             }}
@@ -905,6 +899,7 @@ export function ContentInspector({
             : (
               <div className="article">
                 <MarkdownText
+                  labels={{ code: { copyLabel: t("markdown.copy"), copiedLabel: t("markdown.copied") }, footnotes: t("markdown.footnotes") }}
                   text={articleOrigin === undefined
                     ? detail.article
                     : rewriteArticleImages(detail.article, articleOrigin)}
@@ -989,14 +984,6 @@ export function ContentInspector({
           </>
         )}
       </div>
-      <div
-        className="resize"
-        onPointerDown={(event) => {
-          event.preventDefault();
-          drag.current = { startX: event.clientX, startWidth: panelWidth };
-          setDragging(true);
-        }}
-      />
     </div>
   );
 }

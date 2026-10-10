@@ -1,9 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "tsdown";
 
+const PROJECT_ROOT = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ID = "dsh-oil-creator";
 const CSS_PREFIX = "\0dsh-oil-creator-css:";
 const CSS_SUFFIX = ".mjs";
@@ -13,7 +14,6 @@ const CLIENT_EXTERNALS = [
   "react-dom",
   "react-dom/client",
   "@deepseek-ai/cordis",
-  "@deepseek-ai/dsh-client-runtime/client",
   "@deepseek-ai/dsh-client-locale/client",
   "@deepseek-ai/dsh-client-ui-primitives",
   "@deepseek-ai/dsh-client-ui-slots",
@@ -28,11 +28,11 @@ function inlineCssPlugin() {
       if (!source.endsWith(".css")) return null;
       const file =
         importer === undefined ? source : resolve(dirname(importer), source);
-      return `${CSS_PREFIX}${file}${CSS_SUFFIX}`;
+      return `${CSS_PREFIX}${relative(PROJECT_ROOT, file).replaceAll("\\", "/")}${CSS_SUFFIX}`;
     },
     async load(id: string) {
       if (!id.startsWith(CSS_PREFIX)) return null;
-      const file = id.slice(CSS_PREFIX.length, -CSS_SUFFIX.length);
+      const file = resolve(PROJECT_ROOT, id.slice(CSS_PREFIX.length, -CSS_SUFFIX.length));
       const css = await readFile(file, "utf8");
       const tagId = `${PLUGIN_ID}/${basename(file)}`;
       const registry = resolve(dirname(fileURLToPath(import.meta.url)), "src/client/pluginCss.ts");
@@ -77,7 +77,7 @@ export default defineConfig([
     target: "es2022",
     fixedExtension: false,
     dts: false,
-    sourcemap: true,
+    sourcemap: false,
     clean: false,
     deps: {
       neverBundle: [...CLIENT_EXTERNALS],

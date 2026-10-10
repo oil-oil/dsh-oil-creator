@@ -1,6 +1,6 @@
 # 内容工作台使用说明
 
-DeepSeek Harness 打开后，左侧切到「内容」，中间是一条片子的检查器，右边继续对话。一条片子对应 `~/Movies/视频项目/` 里的一个文件夹，名字是 `日期_可读标题`。
+在 Desktop 工作台管理中添加并打开「内容工作台」。片库和详情不要求已有会话或工作区；Desktop 负责原生会话与工作台切换。一条片子对应 `~/Movies/视频项目/` 里的一个文件夹，名字是 `日期_可读标题`。
 
 ## 对话工具能不能走完整条片子
 
@@ -21,17 +21,17 @@ DeepSeek Harness 打开后，左侧切到「内容」，中间是一条片子的
 
 左侧列表显示每条片子的阶段和时间。已经在任一视频平台发出去的，显示「已发布」；成片、字幕、封面都齐但还没发出去的，显示「待发布」。
 
-点开一条片子，中间检查器不关右边的对话。检查器有五个页：概览、视频、脚本、字幕、文章。概览用封面旁的状态标明阶段，只展开当前步骤的按钮；封面并排显示 3:4 和 4:3。视频页播放带字幕成片，没有带字幕成片时播放原片。字幕和烧录由对话里的工具完成。文章页用 Markdown 渲染 `公众号文章/` 里的成稿和配图。中间栏可以拖宽，大约到 800 像素。
+点开一条片子，工作台业务区显示详情。窄面板优先显示详情，关闭后回到列表。检查器有五个页：概览、视频、脚本、字幕、文章。概览用封面旁的状态标明阶段，只展开当前步骤的按钮；封面并排显示 3:4 和 4:3。视频页播放带字幕成片，没有带字幕成片时播放原片。字幕和烧录由对话里的工具完成。文章页用 Markdown 渲染 `公众号文章/` 里的成稿和配图。关闭详情后仍停留在内容列表。
 
-右边输入 `@`，可以选择「当前详情」或搜以前的片子。发出去的是那一期的文件夹路径，封面、脚本、字幕都在里面，按 [files.md](files.md) 自己去列、去读。`/current content` 同样只带当前打开那条的文件夹路径。
+选择内容后点击「打开内容会话」，在系统目录选择器中确认这一期资料目录。Desktop 创建或恢复工作台所属会话，不自动发送消息。进入所属会话后输入 `@`，可以选择「当前详情」或搜以前的片子。发出去的是那一期的文件夹路径，封面、脚本、字幕都在里面，按 [files.md](files.md) 自己去列、去读。`/current content` 同样只带当前打开那条的文件夹路径。
 
-设置在 Harness 的设置 → 插件 → 内容工作台。这里可以配置影片目录、`enabledPlatforms`、脚本规则（人设）和凭据。影片目录默认是 `~/Movies/视频项目`。`enabledPlatforms` 有小红书、抖音、B 站、视频号四个开关，默认全部启用；AI 发布和数据同步只处理启用的平台，全部关闭时不执行这两项操作。脚本规则是写 `script.md` 时 AI 必须遵循的语气、结构和禁忌，也可以直接在对话里让 AI 记录，AI 会用 `oil_script_rules` 存到同一个地方。字幕转录使用百炼 `DASHSCOPE_API_KEY`，封面使用 ZenMux `ZENMUX_API_KEY`，两者和视觉识别共用官方凭据；页面只显示已配置或未配置，不会把 Key 读回来。
+设置在内容工作台顶部的「设置」。这里可以配置影片目录、`enabledPlatforms`、脚本规则（人设）和凭据。影片目录默认是 `~/Movies/视频项目`。`enabledPlatforms` 有小红书、抖音、B 站、视频号四个开关，默认全部启用；AI 发布和数据同步只处理启用的平台，全部关闭时不执行这两项操作。脚本规则是写 `script.md` 时 AI 必须遵循的语气、结构和禁忌，也可以直接在对话里让 AI 记录，AI 会用 `oil_script_rules` 存到同一个地方。字幕转录使用百炼 `DASHSCOPE_API_KEY`，封面使用 ZenMux `ZENMUX_API_KEY`，两者和视觉识别共用官方凭据；页面只显示已配置或未配置，不会把 Key 读回来。
 
 首次使用推荐选 Harness 的 `standard` 或 `code` Agent preset，再直接说「检查并配置内容工作台」。内置 `creator-workbench` Skill 会让 AI 先调用 `oil_creator_setup` 检查环境。AI 能从系统发现的目录和能力不再逐项追问；任何写入都会先预览，用户确认后才应用。`minimal` preset 没有 Skill 和文件工具，不适合首次引导、自动整理目录或修改正文。
 
 装完不知道能做什么时，直接问「这个插件怎么用」。AI 会调用 `oil_creator_guide`，拿到带当前能力状态的完整指引后告诉你：哪些环节现在就能用，哪些还缺依赖。自动发布和已发布数据回收都依赖 Ego Browser；没装的时候 AI 会明说这两项不可用，片库、脚本、字幕、封面不受影响。
 
-候选影片目录不存在时，先让 AI 展示准备创建的完整路径；确认后创建目录，再重新预览配置并确认应用。`oil_creator_setup` 只接受已经存在的目录，不会暗中创建文件夹。
+首次保存文件前，在工作台的系统目录选择器中选择或明确新建资料目录。取消会保留输入内容，不留下目录、空项目或会话。`oil_creator_setup` 只接受已经存在的目录，不会暗中创建文件夹。
 
 ## 对话里怎么读片子
 
@@ -47,20 +47,22 @@ DeepSeek Harness 打开后，左侧切到「内容」，中间是一条片子的
 | `oil_create_content` | 按今天的日期新建文件夹 |
 | `oil_update_content` | 标记待录制、绑定工程、改某一平台的发布标记 |
 | `oil_open_studio` | 打开已绑定的 Screen Studio 工程 |
-| `oil_wait_export` | 等到文件夹里出现稳定的 MP4 / MOV |
-| `oil_generate_subtitles` | 转录、自动校对、排版；立刻返回；完成后打开预览，出现 `subtitle-transcript.json`，不烧录 |
+| `oil_wait_export` | 启动后台任务，等到文件夹里出现稳定的 MP4 / MOV |
+| `oil_generate_subtitles` | 启动后台任务进行转录、自动校对和排版；完成后打开预览，不烧录 |
 | `oil_open_subtitle_preview` | 在浏览器打开字幕预览编辑器 |
-| `oil_burn_subtitles` | 用户预览确认后再烧进成片；立刻返回；完成后出现 `*_subtitled.mp4` |
-| `oil_generate_cover` | 一键生成 3:4 / 4:3 / 16:9 封面，立刻返回；完成后出现对应 png |
+| `oil_burn_subtitles` | 用户预览确认后启动后台烧录；完成后出现 `*_subtitled.mp4` |
+| `oil_generate_cover` | 启动后台任务生成 3:4 / 4:3 / 16:9 封面 |
+| `oil_prepare_visual_review` | 把三画幅封面作为多模态附件交给当前模型审查 |
+| `oil_save_visual_review` | 保存视觉审查结论到该期目录的 JSON 和 Markdown |
 | `oil_sync_publish` | 用 Ego 翻完启用平台的已发布列表，按标题或已存 id 写回播放 / 赞 / 评 |
 | `oil_creator_profile` | 读或改 `enabledPlatforms`，即 AI 发布和数据同步使用的平台列表 |
 | `oil_organize_library` | 预览或把文件夹改成 `日期_可读标题`，默认只预览 |
 
-长任务都是先启动，再看文件夹里有没有产物，不要把一次启动当成已经完成。
+四个长任务都会返回 Harness job id。用 `job_output` 查看结果，需要等待时传 `wait=true`，用 `job_kill` 取消；不要把一次启动当成已经完成。封面任务完成后调用 `oil_prepare_visual_review`，核对构图、标题可读性、安全区、画幅适配和品牌一致性，再用 `oil_save_visual_review` 保存结论。
 
 ## 新做一条片子
 
-先在右边说这一期讲什么。可以让对话新建内容，例如：「今天做一期 DeepSeek Harness 安装上手，建文件夹，把选题写进笔记。」
+先在工作台点击新建内容，输入标题并选择资料目录；需要 AI 时点击「打开内容会话」，再说这一期讲什么。可以让对话新建内容，例如：「今天做一期 DeepSeek Harness 安装上手，建文件夹，把选题写进笔记。」
 
 对应工具是 `oil_create_content`。选题写进这一期的 `topic.md`，脚本写进 `script.md`，也可以之后在中间「脚本」页自己改。
 
@@ -68,7 +70,7 @@ DeepSeek Harness 打开后，左侧切到「内容」，中间是一条片子的
 
 剪辑在对话里喊 `screen-studio-editor`，对照绑定的工程清理停顿和误讲。工作台只负责打开工程，不替你改时间线。预览满意后，在 Screen Studio 里亲手导出 MP4，导出目标就是这一期的文件夹。
 
-导出开始后说：「等这条的成片落盘，落盘后生成字幕和封面。」`oil_wait_export` 会等到文件大小稳定。成片到了再用 `oil_generate_subtitles` 出字幕稿并打开预览；用户确认后再 `oil_burn_subtitles`。封面用 `oil_generate_cover`，调用前先按 oil-cover 提炼主标题传入 `title`。生成后要在对话里核对标题和错别字，不对就再说一次生成。
+导出开始后说：「等这条的成片落盘，落盘后生成字幕和封面。」`oil_wait_export` 会返回一个后台任务，文件大小稳定后自动完成。成片到了再用 `oil_generate_subtitles` 出字幕稿并打开预览；用户确认后再 `oil_burn_subtitles`。封面用 `oil_generate_cover`，调用前先按 oil-cover 提炼主标题传入 `title`。生成后让模型执行视觉审查并保存报告，不通过就根据报告重做。
 
 首次 clone `oil-subtitle` 后必须运行 `bash ~/.agents/skills/oil-subtitle/setup.sh`，否则字幕工作流不会就绪。不要在预览前烧录。`oil_burn_subtitles` 不会覆盖已经带字幕的成片文件名习惯，产物文件名里带 `_subtitled`。
 

@@ -215,6 +215,7 @@ export interface SetLibraryRootRequest {
 
 export interface CreateContentRequest {
   title: string;
+  libraryRoot?: string;
 }
 
 export interface CreateContentResult {
@@ -325,4 +326,5 @@ export interface SetTopicNoteRequest {
 export interface SetScriptRequest {
   id: string;
   text: string;
+  folderPath?: string;
 }

@@ -29,10 +29,10 @@ export const CREATOR_WORKBENCH_SKILL = {
 
 - 内容目录和 \`enabledPlatforms\` 通过 \`oil_creator_setup\` 配置；这里不配置创作者名称或平台主页。
 - 脚本规则（人设）通过 \`oil_script_rules\` 配置：写或改 script.md 前先读；用户第一次让你写脚本而没有规则时，主动问清语气、结构、禁忌和目标观众再存下；之后把新的长期偏好合并进现有规则，不要整体覆盖。
-- 候选内容目录不存在时，先展示准备创建的完整路径；用户确认后用系统文件工具创建，再重新调用 \`oil_creator_setup\` 预览。不要把不存在的目录直接交给配置工具。
+- 候选内容目录不存在时，让用户在内容工作台的系统目录选择器中明确新建或选择目录；用户确认后再重新调用 \`oil_creator_setup\` 预览。不要在默认位置或推测路径创建目录。
 - 第一次带配置字段调用时保持 \`apply=false\`，把精确变更展示给用户。
 - 只有用户确认后，才使用同一组字段和 \`apply=true\`。
-- 不向用户索要 API Key 明文。字幕和封面凭据只能让用户在插件设置页通过 Harness Credentials 配置。
+- 不向用户索要 API Key 明文。字幕和封面凭据只能让用户在内容工作台的设置页通过 Harness Credentials 配置。
 - 高级依赖路径由插件配置或环境自动发现；能自动发现时不要增加问题。
 
 ## 内容目录
@@ -40,7 +40,7 @@ export const CREATOR_WORKBENCH_SKILL = {
 - 磁盘文件是正文真源；工作台 overlay 只保存绑定、阶段和发布状态。
 - 一集一个子目录，默认命名为 \`YYYY-MM-DD_可读标题\`。
 - 先列目录，再读这一集需要的 \`topic.md\`、\`script.md\`、发布包、字幕或文章文件。
-- 创建新内容使用 \`oil_create_content\`；修改普通 Markdown 和 JSON 正文使用系统文件工具。
+- 首次保存文件前先在工作台调用系统目录选择器。已确认资料位置后，创建新内容使用 \`oil_create_content\`；修改普通 Markdown 和 JSON 正文使用系统文件工具。
 
 ## 整理与发布安全
 
@@ -50,7 +50,10 @@ export const CREATOR_WORKBENCH_SKILL = {
 
 ## 推进工作
 
-每次只推进当前缺失的下一步：选题与脚本 → 录制/工程 → 导出成片 → 字幕 → 封面 → 发布草稿 → 用户最终发表 → 同步数据。长任务启动后检查产物或工作台状态，不把“已经启动”说成“已经完成”。`,
+每次只推进当前缺失的下一步：选题与脚本 → 录制/工程 → 导出成片 → 字幕 → 封面 → 视觉审查 → 发布草稿 → 用户最终发表 → 同步数据。
+
+- \`oil_wait_export\`、\`oil_generate_subtitles\`、\`oil_burn_subtitles\`、\`oil_generate_cover\` 返回 Harness job id。用 \`job_output\` 的 \`wait=true\` 等待并查看完成结果，用 \`job_kill\` 取消，不轮询文件夹冒充任务控制器。
+- 封面任务完成后调用 \`oil_prepare_visual_review\`，检查三画幅构图、文字可读性、安全区、适配和品牌一致性；再用 \`oil_save_visual_review\` 保存具体结论。不把“已经启动”说成“已经完成”。`,
 };
 
 export function registerCreatorWorkbenchSkill(ctx: SkillsContext): () => void {

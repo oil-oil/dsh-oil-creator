@@ -17,6 +17,7 @@ import type {
 
 export interface CreatorViewFace {
   ready: () => boolean;
+  captureNavigation: () => () => boolean;
   listContents: (query: string, filter: ContentFilter) => Promise<ListContentsResult>;
   getRevision: () => Promise<number>;
   getContent: (id: string) => Promise<ContentDetail>;
@@ -42,5 +43,5 @@ export interface CreatorViewFace {
   startSubtitleBurn: (id: string) => Promise<ContentDetail>;
   startSubtitleGenerate: (id: string) => Promise<ContentDetail>;
   startCoverGenerate: (id: string) => Promise<ContentDetail>;
-  setScript: (id: string, text: string) => Promise<ContentDetail>;
+  setScript: (id: string, text: string, folderPath?: string) => Promise<ContentDetail>;
 }

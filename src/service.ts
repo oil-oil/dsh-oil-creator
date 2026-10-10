@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { readdir, realpath, stat } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative } from "node:path";
 
 import type { Context } from "@deepseek-ai/cordis";
 import { TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
@@ -357,6 +357,20 @@ export class OilCreatorService extends TypertRemoteService {
     return { text, cues };
   }
 
+  async openContentPath(request: { path: string }, signal: AbortSignal): Promise<Record<string, never>> {
+    signal.throwIfAborted();
+    const overlay = await loadOverlay(this.dataDir);
+    const root = await realpath(overlay.libraryRoot ?? this.libraryRoot);
+    const target = await realpath(request.path);
+    const inside = relative(root, target);
+    if (inside === ".." || inside.startsWith("../") || inside.startsWith("..\\") || isAbsolute(inside)) {
+      throw new Error("只能打开当前资料目录里的文件。");
+    }
+    signal.throwIfAborted();
+    await openExternalPath(target);
+    return {};
+  }
+
   async getSettings(_request: Record<string, never>, signal: AbortSignal): Promise<LibrarySettings> {
     signal.throwIfAborted();
     const overlay = await loadOverlay(this.dataDir);
@@ -489,6 +503,8 @@ export class OilCreatorService extends TypertRemoteService {
     signal.throwIfAborted();
     const item = await this.find(request.id);
     if (item === undefined) throw new Error(`content not found: ${request.id}`);
+    if (request.folderPath !== undefined && request.folderPath !== item.folderPath) throw new Error("资料位置已切换，脚本草稿已保留，请重新打开对应内容。");
+    signal.throwIfAborted();
     await writeScript(item.folderPath, request.text);
     return this.getContent({ id: request.id }, signal);
   }
@@ -541,7 +557,8 @@ export class OilCreatorService extends TypertRemoteService {
   ): Promise<CreateContentResult> {
     signal.throwIfAborted();
     const overlay = await loadOverlay(this.dataDir);
-    const libraryRoot = overlay.libraryRoot ?? this.libraryRoot;
+    const libraryRoot = request.libraryRoot === undefined ? overlay.libraryRoot : resolveUserPath(request.libraryRoot);
+    if (libraryRoot === undefined) throw new Error("请先在内容工作台的系统目录选择器中确认资料位置。");
     const created = await createContentFolder(libraryRoot, request.title);
     this.invalidateCatalog();
     return created;
@@ -953,6 +970,61 @@ export class OilCreatorService extends TypertRemoteService {
       this.exportWaiters.delete(request.id);
     });
     return started;
+  }
+
+  async waitForMediaJob(
+    id: string,
+    field: "burn" | "subtitleJob" | "coverJob",
+    signal: AbortSignal,
+  ): Promise<BurnJob> {
+    while (true) {
+      signal.throwIfAborted();
+      const detail = await this.getContent({ id }, signal);
+      const job = detail[field];
+      if (job.status !== "running") return job;
+      await sleep(400, signal);
+    }
+  }
+
+  async cancelMediaJob(
+    id: string,
+    field: "burn" | "subtitleJob" | "coverJob",
+  ): Promise<void> {
+    const signal = new AbortController().signal;
+    const detail = await this.getContent({ id }, signal);
+    const job = detail[field];
+    if (job.status !== "running") return;
+    await terminateOwnedProcess(job.pid, JOB_COMMAND[field]);
+    await this.patchItem(id, (next) => {
+      const current = next[field];
+      if (current?.status !== "running" || current.pid !== job.pid) return;
+      next[field] = {
+        status: "error",
+        ...(current.startedAt === undefined ? {} : { startedAt: current.startedAt }),
+        ...(current.output === undefined ? {} : { output: current.output }),
+        error: "cancelled",
+      };
+    }, signal);
+  }
+
+  async waitForExportCompletion(id: string, signal: AbortSignal): Promise<ContentDetail> {
+    while (true) {
+      signal.throwIfAborted();
+      const detail = await this.getContent({ id }, signal);
+      if (detail.videoRaw !== undefined || detail.videoSubtitled !== undefined || detail.exportTimedOut === true) {
+        return detail;
+      }
+      await sleep(400, signal);
+    }
+  }
+
+  async cancelExportWait(id: string): Promise<void> {
+    this.exportWaiters.get(id)?.abort();
+    this.exportWaiters.delete(id);
+    await this.patchItem(id, (next) => {
+      delete next.waitingForExport;
+      delete next.exportTimedOut;
+    }, new AbortController().signal);
   }
 
   async find(id: string) {

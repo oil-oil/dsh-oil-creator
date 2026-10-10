@@ -9,6 +9,7 @@ interface TriggerCandidate {
 
 interface TriggerPick {
   candidate: TriggerCandidate;
+  session?: unknown;
 }
 
 type PickOutcome = { insert: {
@@ -27,7 +28,7 @@ interface TriggerSource {
     req: { query: string; signal: AbortSignal },
   ) => Promise<readonly TriggerCandidate[]>;
   onPick: (pick: TriggerPick) => PickOutcome;
-  lexicon?: () => readonly string[] | undefined;
+  lexicon?: (session?: unknown) => readonly string[] | undefined;
   subscribeLexicon?: (_session: unknown, listener: () => void) => () => void;
   codec?: {
     clipboardText: (ref: string) => string;
@@ -75,13 +76,19 @@ export function registerContentTriggers(
   inputTriggers: TriggerService | undefined,
   load: (id: string) => Promise<ContentDetail>,
   list: () => Promise<ReadonlyArray<{ id: string; title: string }>>,
+  ownsCurrentSession: (session?: unknown) => boolean = () => true,
 ): () => void {
   if (inputTriggers === undefined) return () => undefined;
 
-  const serialize = async (ref: string): Promise<string> => {
+  const serialize = async (ref: string, signal: AbortSignal): Promise<string> => {
+    if (!ownsCurrentSession()) throw new Error("请先在内容工作台打开所属会话。");
     const id = ref === "current" ? getSelectedContentId() : ref;
-    if (id === null || id === "") return "当前没有打开的内容。用 @ 选一条，或先在左侧打开详情。";
-    return formatContentRef(await load(id));
+    if (id === null || id === "") return "当前没有打开的内容。用 @ 选一条，或先在内容页打开详情。";
+    signal.throwIfAborted();
+    const detail = await load(id);
+    signal.throwIfAborted();
+    if (!ownsCurrentSession()) throw new Error("会话已切换，请重新选择内容。");
+    return formatContentRef(detail);
   };
 
   const insert = (ref: string, title: string): PickOutcome => ({
@@ -97,9 +104,11 @@ export function registerContentTriggers(
     trigger: "@",
     name: "oil",
     order: 30,
-    async candidates(_session, req) {
+    async candidates(session, req) {
+      if (!ownsCurrentSession(session) || req.signal.aborted) return [];
       const query = req.query.trim().toLowerCase();
       const items = await list();
+      if (!ownsCurrentSession(session) || req.signal.aborted) return [];
       const rows: TriggerCandidate[] = [];
       const selected = getSelectedContentId();
       if (selected !== null && ("当前".includes(query) || query === "")) {
@@ -117,12 +126,13 @@ export function registerContentTriggers(
       }
       return rows.slice(0, 20);
     },
-    onPick({ candidate }) {
+    onPick({ candidate, session }) {
+      if (!ownsCurrentSession(session)) return undefined;
       if (candidate.name === "当前详情") return insert("current", "当前详情");
       return insert(candidate.description ?? candidate.name, candidate.name);
     },
-    lexicon() {
-      return ["当前详情"];
+    lexicon(session) {
+      return ownsCurrentSession(session) ? ["当前详情"] : [];
     },
     subscribeLexicon(_session, listener) {
       return subscribeSelectedContentId(listener);
@@ -137,7 +147,8 @@ export function registerContentTriggers(
     trigger: "/",
     name: "oil",
     order: 40,
-    async candidates(_session, req) {
+    async candidates(session, req) {
+      if (!ownsCurrentSession(session) || req.signal.aborted) return [];
       const query = req.query.trim().toLowerCase();
       const name = "current content";
       if (query !== "" && !name.includes(query) && !"当前内容".includes(query)) {
@@ -145,11 +156,12 @@ export function registerContentTriggers(
       }
       return [{ name, description: "把当前打开的内容交给对话" }];
     },
-    onPick() {
+    onPick({ session }) {
+      if (!ownsCurrentSession(session)) return undefined;
       return insert("current", "当前内容");
     },
-    lexicon() {
-      return ["current content", "当前内容"];
+    lexicon(session) {
+      return ownsCurrentSession(session) ? ["current content", "当前内容"] : [];
     },
     codec: {
       clipboardText: () => "/current content",

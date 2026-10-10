@@ -19,6 +19,7 @@ describe("handwritten TYPERT", () => {
       "getVideoPlayback",
       "getArticleMedia",
       "getSubtitleText",
+      "openContentPath",
       "getSettings",
       "getCapabilities",
       "getRevision",
@@ -43,8 +44,8 @@ describe("handwritten TYPERT", () => {
       expect(item.namespace).toBe(REMOTE_NAMESPACE);
       expect(item.result.mode).toBe("strict");
       if (item.result.mode !== "strict") continue;
-      expect("_zod" in item.result.schema).toBe(true);
-      expect(typeof item.result.schema.parse).toBe("function");
+      expect("_zod" in item.result.create()).toBe(true);
+      expect(typeof item.result.create().parse).toBe("function");
     }
   });
 });

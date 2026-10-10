@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { IconChevronDownOutline14 } from "@deepseek-ai/dsh-client-ui-primitives";
-import type { InjectFace, PropsLocale, PropsRuntime } from "@deepseek-ai/dsh-client-ui-slots";
-import type {} from "@deepseek-ai/dsh-client-ui-settings-plugins/client";
+import { IconChevronDownOutlineRegular } from "@deepseek-ai/dsh-client-ui-primitives";
 
 import { normalizeEnabledPlatforms, PUBLISH_PLATFORMS } from "../platforms.ts";
 import { COVER_KEY_REFS, SUBTITLE_KEY_REFS } from "../secrets.ts";
@@ -9,6 +7,7 @@ import type { CreatorCapabilities, CreatorProfile, CreatorSecrets, PublishPlatfo
 import type { CredentialsClient, SecretDraft } from "./credentialsApi.ts";
 import { applyDescribed, secretDraftOf } from "./credentialsApi.ts";
 import type { CreatorViewFace } from "./face.ts";
+import { useProfileEpoch } from "./contentSelection.ts";
 import type { CreatorKey } from "./locales.ts";
 import { CREATOR_SETTINGS_PLATFORMS } from "./publishPlatforms.ts";
 import { ActionBar, ActionButton } from "./ui/ActionButton.tsx";
@@ -16,12 +15,8 @@ import { StatusPill, type StatusTone } from "./ui/StatusPill.tsx";
 import "./CreatorSettingsCard.css";
 
 export type CreatorSettingsCardProps =
-  & PropsRuntime<"settings.plugin.item">
-  & PropsLocale<"dsh.oil.creator">
-  & InjectFace<
-    Pick<CreatorViewFace, "ready" | "getSettings" | "getCapabilities" | "setLibraryRoot" | "setProfile" | "setScriptRules" | "pickDirectory">
-    & { credentials: CredentialsClient | undefined }
-  >;
+  Pick<CreatorViewFace, "ready" | "getSettings" | "getCapabilities" | "setLibraryRoot" | "setProfile" | "setScriptRules" | "pickDirectory">
+  & { credentials: CredentialsClient | undefined; t: (key: CreatorKey) => string };
 
 const EMPTY_SECRETS: CreatorSecrets = {
   subtitle: { kind: "subtitle", ref: SUBTITLE_KEY_REFS[0], configured: false, writable: true },
@@ -71,6 +66,7 @@ export function CreatorSettingsCard({
   getCapabilities,
   credentials,
 }: CreatorSettingsCardProps) {
+  const profileEpoch = useProfileEpoch();
   const [open, setOpen] = useState(false);
   const [savedRoot, setSavedRoot] = useState("");
   const [draftRoot, setDraftRoot] = useState("");
@@ -91,6 +87,7 @@ export function CreatorSettingsCard({
 
   useEffect(() => {
     if (!ready()) return;
+    if (loaded && (draftRoot !== savedRoot || !sameProfile(draftProfile, savedProfile) || draftRules !== savedRules)) return;
     let cancelled = false;
     void getSettings().then((settings) => {
       if (cancelled) return;
@@ -112,7 +109,7 @@ export function CreatorSettingsCard({
     return () => {
       cancelled = true;
     };
-  }, [ready, getSettings]);
+  }, [ready, getSettings, open, profileEpoch]);
 
   useEffect(() => {
     if (!open || credentials === undefined) return;
@@ -220,7 +217,7 @@ export function CreatorSettingsCard({
   };
 
   return (
-    <li data-plugin="dsh-oil-creator" data-surface="settings-card" className={open ? "card open" : "card"}>
+    <section data-plugin="dsh-oil-creator" data-surface="settings-card" className={open ? "card open" : "card"}>
       <button
         type="button"
         className="header"
@@ -233,7 +230,7 @@ export function CreatorSettingsCard({
           <span className="description">{t("settings.description" as CreatorKey)}</span>
         </span>
         {dirty && <span className="pending">{t("settings.save" as CreatorKey)}</span>}
-        <IconChevronDownOutline14 className={open ? "chevron open" : "chevron"} />
+        <IconChevronDownOutlineRegular className={open ? "chevron open" : "chevron"} />
       </button>
       {open && (
         <div className="body">
@@ -370,6 +367,6 @@ export function CreatorSettingsCard({
           </div>
         </div>
       )}
-    </li>
+    </section>
   );
 }

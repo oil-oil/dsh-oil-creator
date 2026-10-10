@@ -11,8 +11,8 @@ export interface CreatorUiState {
   query: string;
   sidebarTab: SidebarTab;
   inspectorWidth?: number;
+  sessionContents?: Record<string, { contentId: string; folder: string; requiresNewSession?: boolean }>;
 }
-
 export const DEFAULT_UI_STATE: CreatorUiState = {
   schemaVersion: 1,
   selectedId: null,
@@ -43,6 +43,8 @@ export function loadCreatorUiState(storage: CreatorStorage | undefined): Creator
     const filter = parsed.filter;
     return {
       schemaVersion: 1,
+      ...(parsed.sessionContents !== undefined ? { sessionContents: Object.fromEntries(Object.entries(parsed.sessionContents ?? {}).filter(([id, item]) =>
+        id !== "" && item !== null && typeof item === "object" && typeof item.contentId === "string" && typeof item.folder === "string")) } : {}),
       selectedId: typeof parsed.selectedId === "string" ? parsed.selectedId : null,
       filter: filter === "cover" || filter === "subtitle" || filter === "article" ? filter : "all",
       query: typeof parsed.query === "string" ? parsed.query : "",

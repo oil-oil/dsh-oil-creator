@@ -91,17 +91,18 @@ export function creatorGuideText(status: CreatorSetupStatus): string {
     "",
     "## 字幕",
     "- 成片落盘后：oil_generate_subtitles 转录、自动校对、排版，完成后打开预览；用户在预览里确认专有名词后，再用 oil_burn_subtitles 烧录。预览前不要烧录。",
-    "- oil_generate_subtitles 是长任务，调用后立即返回。完成看 subtitle-transcript.json / subtitle-manifest.json，不要等 *_subtitled.mp4，也不要把启动说成完成。",
+    "- oil_generate_subtitles 是 Harness 后台任务。保存返回的 job id，用 job_output 的 wait=true 等待并获取完成结果、job_kill 取消；不要把启动说成完成。完成标志是 subtitle-transcript.json / subtitle-manifest.json，不是 *_subtitled.mp4。",
     ...subtitleLines(capabilities),
     "",
     "## 封面",
-    "- oil_generate_cover 前先按 oil-cover 从脚本或字幕提炼封面主标题，通过 title 传入；不要把文件夹名直接当封面结论。生成后请用户核对标题文字和错别字，不对就再生成。",
+    "- oil_generate_cover 前先按 oil-cover 从脚本或字幕提炼封面主标题，通过 title 传入；不要把文件夹名直接当封面结论。它返回 Harness job id，用 job_output（需要等待时传 wait=true）/ job_kill 管理。",
+    "- 封面任务完成后调用 oil_prepare_visual_review，把三画幅作为图片附件检查构图、可读性、安全区、画幅适配和品牌一致性；随后调用 oil_save_visual_review，把具体结论写入该期目录。",
     ...coverLines(capabilities),
     "",
     "## 录制与剪辑",
     "- Screen Studio 是录制和自动剪辑的共同前提（仅 macOS）：录制和导出成片由用户在 Screen Studio 里亲手完成；剪辑走外部 skill screen-studio-editor，它操作的是 .screenstudio 工程。",
     capabilities.screenStudio.state === "ready"
-      ? "- 当前已发现 Screen Studio。用 oil_update_content 把工程绑到对应一集，oil_open_studio 打开，oil_wait_export 等待成片落盘。"
+      ? "- 当前已发现 Screen Studio。用 oil_update_content 把工程绑到对应一集，oil_open_studio 打开，oil_wait_export 以 Harness 后台任务等待成片落盘。"
       : "- 当前没有可用的 Screen Studio：绑定工程、自动剪辑（screen-studio-editor）和等待导出都不可用。告诉用户需要先装 Screen Studio 并用它录制；如果用户用其他工具剪片，把成片文件放进这一集的文件夹即可跳过这一环节。",
     capabilities.editingSkill.state === "ready"
       ? "- 已发现 screen-studio-editor，用户要求清理时间线时直接使用。"

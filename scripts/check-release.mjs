@@ -19,9 +19,11 @@ const REQUIRED_FILES = [
   "src/guide.ts",
   "src/platforms.ts",
   "src/client/publishPlatforms.ts",
-  "src/settingsContract.ts",
   "src/settingsHost.ts",
-  "src/client/settingsSlot.ts",
+  "src/backgroundJobs.ts",
+  "src/visualReview.ts",
+  "src/client/CreatorWorkbench.tsx",
+  "src/client/workbench.ts",
   "tests/creatorSkill.test.ts",
   "tests/capabilities.test.ts",
   "tests/guide.test.ts",
@@ -29,7 +31,10 @@ const REQUIRED_FILES = [
   "tests/creatorSettings.test.ts",
   "tests/contentInspector.test.ts",
   "tests/settingsHost.test.ts",
-  "tests/settingsSlot.test.ts",
+  "tests/backgroundJobs.test.ts",
+  "tests/visualReview.test.ts",
+  "tests/workbench.test.ts",
+  "tests/clientApply.test.ts",
   "README.md",
   "assets/readme/hero.svg",
   "LICENSE",
@@ -127,7 +132,7 @@ function checkRelease(root) {
   if (typeof scripts.test !== "string" || scripts.test.length === 0) {
     addFailure("缺少 test 脚本");
   }
-  if (scripts.check !== "pnpm typecheck && pnpm test && pnpm build") {
+  if (scripts.check !== "pnpm typecheck && pnpm build && pnpm test") {
     addFailure("check 必须固定为完整的 pnpm typecheck、test、build 流程");
   }
   if (scripts["release:check"] !== "node scripts/check-release.mjs") {

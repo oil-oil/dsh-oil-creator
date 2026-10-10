@@ -266,6 +266,7 @@ export const setLibraryRootRequestSchema = z.object({
 
 export const createContentRequestSchema = z.object({
   title: z.string().min(1),
+  libraryRoot: z.string().min(1).optional(),
 });
 
 export const createContentResultSchema = z.object({
@@ -289,6 +290,7 @@ export const setTopicNoteRequestSchema = z.object({
 export const setScriptRequestSchema = z.object({
   id: z.string().min(1),
   text: z.string(),
+  folderPath: z.string().min(1).optional(),
 });
 
 export const organizeRequestSchema = z.object({
