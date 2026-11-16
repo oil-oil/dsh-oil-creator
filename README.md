@@ -152,6 +152,7 @@ pnpm check
 - [日常使用与完整工具说明](docs/usage.md)
 - [内容文件夹约定](docs/files.md)
 - [插件实现与兼容性说明](docs/implementation.md)
+- [《从 0 到 1 理解 DeepSeek Harness 插件》](https://book.oiloil.org/articles/deepseek-harness-plugin-guide?utm_source=github&utm_medium=referral&utm_campaign=dsh-oil-creator-readme)（Oil Book 相关文章）
 
 ## 使用问题
 
